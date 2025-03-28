@@ -1,0 +1,624 @@
+SEMAFORO2                                                                                                               PAGE 1
+                         1     ; -----------------------------------------------
+                         2     ; CONSTANTES
+                         3     ; -----------------------------------------------
+                         4
+  0020                   5     data_ptr   equ  20h    ; Ponteiro para número a ser exibido
+  0004                   6     data_len   equ  4h     ; Número de dígitos
+  0040                   7     CONTADOR_EX0 EQU 40H   ; Contador para EX0
+                         8
+                         9     ; -------------------------------------------------
+                        10     ; Definição de flag de emergência
+                        11     ; -------------------------------------------------
+  0021                  12     EMERGENCY_FLAG  BIT  21h     ; Flag de emergência
+                        13
+                        14     ; -------------------------------------------------
+                        15     ; Definição de flag de 5 carros
+                        16     ; -------------------------------------------------
+  0022                  17     FIVE_PEOPLE_FLAG  BIT  22h   ; Flag de 5 Carros
+                        18
+                        19     ; ----------------------
+                        20     ; Tabela de números para o display de 7 segmentos
+                        21     ; ----------------------
+0210 C0                 22     numbers: db  11000000b ; 0
+0211 F9                 23              db  11111001b ; 1
+0212 A4                 24              db  10100100b ; 2
+0213 B0                 25              db  10110000b ; 3
+0214 99                 26              db  10011001b ; 4
+0215 92                 27              db  10010010b ; 5
+0216 82                 28              db  10000010b ; 6
+0217 F8                 29              db  11111000b ; 7
+0218 80                 30              db  10000000b ; 8
+0219 90                 31              db  10010000b ; 9
+                        32
+                        33     ; ----------------------
+                        34     ; Vetores de interrupção
+                        35     ; ----------------------
+                        36     ORG 0000h
+0000 0201D0             37         JMP start
+                        38
+                        39     ORG 0003h
+                        40     EX0_ISR:
+0003 208201             41         JB P0.2, CHAMA_INCREMENTA
+                        42
+0006 32                 43         RETI
+                        44
+                        45     CHAMA_INCREMENTA:
+0007 120083             46         CALL INCREMENTA_EX0
+000A 32                 47         RETI
+                        48
+                        49     ORG 0013h
+                        50     EX1_ISR:
+0013 D221               51         SETB EMERGENCY_FLAG   ; Ativa a flag de emergência
+0015 C284               52         CLR P0.4              ; Acende quarto LED indicando que a interrupção ocorreu
+0017 32                 53         RETI
+                        54
+                        55     ORG 0070h   ; Programa principal começa aqui
+                        56
+                        57     ; -----------------------------------------------
+                        58     ; Delay de 1 segundo utilizando Timer 0
+                        59     ; -----------------------------------------------
+                        60     delay_1s:
+0070 758901             61         mov TMOD, #01h    ; Modo 1 para o Timer 0 (16 bits)
+0073 758CFF             62         mov TH0, #0FFh    ; Byte de maior peso (TH0)
+0076 758A84             63         mov TL0, #084h    ; Byte de menor peso (TL0)
+0079 D28C               64         setb TR0          ; Inicia o Timer 0
+                        65
+                        66
+                        67     wait_1s:
+007B 308DFD             68         jnb TF0, wait_1s  ; Espera até o TF0 ser setado
+007E C28D               69         clr TF0           ; Limpa a flag de overflow do Timer 0
+0080 D284               70         SETB P0.4
+                        71         ;SETB P0.5
+0082 22                 72         ret
+                        73
+                        74
+                        75     ;-------------------------------------------------
+                        76     ; INCREMENTA_EX0
+                        77     ; Incrementa o valor armazenado em CONTADOR_EX0
+                        78     ;-------------------------------------------------
+                        79     INCREMENTA_EX0:
+0083 C0E0               80         PUSH ACC             ; Salva o valor original de A (Acumulador)
+0085 E540               81         MOV A, CONTADOR_EX0  ; Carrega o valor atual do contador
+0087 04                 82         INC A                ; Incrementa o acumulador
+0088 F540               83         MOV CONTADOR_EX0, A  ; Armazena o valor incrementado de volta em CONTADOR_EX0
+008A D0E0               84         POP ACC              ; Restaura o valor original de A
+008C 22                 85         RET
+                        86
+                        87     ; -----------------------------------------------
+                        88     ; VERIFICA_EX0
+                        89     ; Verifica se CONTADOR_EX0 >= 5 e reseta se necessário
+                        90     ; -----------------------------------------------
+                        91     VERIFICA_EX0:
+008D E540               92         MOV A, CONTADOR_EX0   ; Copia o contador para A
+008F C3                 93         CLR C                 ; Limpa o carry para a subtração
+0090 9405               94         SUBB A, #5            ; A = CONTADOR_EX0 - 5; se CONTADOR_EX0 >= 5, não haverá borrow
+0092 4007               95         JC CONTINUA_EX0       ; Se houve borrow (carry = 1), então CONTADOR_EX0 < 5, pula o tratamento
+                        96
+                        97         ; Se chegou aqui, CONTADOR_EX0 >= 5
+0094 C285               98         CLR P0.5              ; Acende o LED em P0.5 (assumindo LED ativo em 0)
+0096 754000             99         MOV CONTADOR_EX0, #0  ; Reseta o contador
+0099 D222              100         SETB FIVE_PEOPLE_FLAG ; Ativa a flag de 5 pessoas
+                       101
+                       102     CONTINUA_EX0:
+009B 22                103         RET
+                       104
+                       105
+                       106     ; ----------------------
+                       107     ; Rotinas auxiliares
+                       108     ; ----------------------
+                       109
+                       110     ; -----------------------------------------------
+                       111     ; DECREMENTA O NÚMERO EXIBIDO NO DISPLAY
+                       112     ; -----------------------------------------------
+                       113     decrement_number:
+                       114         ; Decrementa a unidade (data_ptr+0)
+009C E520              115         mov A, data_ptr+0
+009E B40023            116         cjne A, #00h, continue_decrement_unidade
+00A1 7409              117         mov A, #09h         ; Quando a unidade chegar a 00h, reinicia para 09h
+00A3 F520              118         mov data_ptr+0, A   ; Atualiza unidade
+                       119         ; Decrementa a dezena (data_ptr+1)
+00A5 08                120         inc R0
+00A6 E521              121         mov A, data_ptr+1
+00A8 B4001C            122         cjne A, #00h, continue_decrement_dezena
+00AB 7409              123         mov A, #09h         ; Quando a dezena chegar a 00h, reinicia para 09h
+00AD F521              124         mov data_ptr+1, A   ; Atualiza dezena
+                       125         ; Decrementa a centena (data_ptr+2)
+00AF 08                126         inc R0
+00B0 E522              127         mov A, data_ptr+2
+00B2 B40015            128         cjne A, #00h, continue_decrement_centena
+00B5 7409              129         mov A, #09h         ; Quando a centena chegar a 00h, reinicia para 09h
+00B7 F522              130         mov data_ptr+2, A   ; Atualiza centena
+                       131         ; Decrementa o milhar (data_ptr+3)
+00B9 08                132         inc R0
+00BA E523              133         mov A, data_ptr+3
+00BC B40004            134         cjne A, #00h, decrement_end
+00BF 7409              135         mov A, #09h         ; Quando o milhar chegar a 00h, reinicia para 09h
+00C1 F523              136         mov data_ptr+3, A   ; Atualiza milhar
+                       137     decrement_end:
+00C3 22                138         ret
+                       139
+                       140     continue_decrement_unidade:
+00C4 1520              141         dec data_ptr+0      ; Decrementa a unidade
+00C6 22                142         ret
+                       143
+                       144     continue_decrement_dezena:
+00C7 1521              145         dec data_ptr+1      ; Decrementa a dezena
+00C9 22                146         ret
+                       147
+                       148     continue_decrement_centena:
+00CA 1522              149         dec data_ptr+2      ; Decrementa a centena
+00CC 22                150         ret
+                       151
+                       152
+                       153     ; -----------------------------------------------
+                       154     ; Exibe o número no display de 7 segmentos
+                       155     ; -----------------------------------------------
+                       156     display_number:
+00CD 118D              157         CALL VERIFICA_EX0
+00CF 18                158         dec R0
+00D0 E5F0              159         mov A, B
+00D2 03                160         rr A
+00D3 F5F0              161         mov B, A
+00D5 E6                162         mov A, @R0
+00D6 93                163         movc A, @A+DPTR
+00D7 75A0FF            164         mov P2, #0ffh
+00DA F590              165         mov P1, A
+00DC 85F0A0            166         mov P2, B
+00DF B820EB            167         cjne R0, #data_ptr, display_number
+                       168     ;    ACALL EX0_HANDLER
+00E2 D285              169         SETB P0.5
+                       170
+00E4 22                171         ret
+                       172
+                       173
+                       174     ; -----------------------------------------------
+                       175     ; Controle dos LEDs
+                       176     ; -----------------------------------------------
+                       177     turn_off_leds:
+00E5 D280              178         SETB P0.0                   ; DESLIGA O LED VERDE
+00E7 D281              179         SETB P0.1                   ; DESLIGA O LED AMARELO
+00E9 D282              180         SETB P0.2                   ; DESLIGA O LED VERMELHO
+00EB 22                181         ret
+                       182
+                       183     turn_on_green_led_10s:
+00EC C280              184         CLR P0.0                    ; LIGA O VERDE
+00EE 120185            185         call countdown_10_seconds   ; Contagem regressiva de 10 segundos
+00F1 D280              186         SETB P0.0                   ; DESLIGA O LED VERDE
+00F3 22                187         ret
+                       188
+                       189     turn_on_yellow_led_3s:
+00F4 C281              190         CLR P0.1                    ; LIGA O LED AMARELO
+00F6 120114            191         call countdown_3_seconds    ; Contagem regressiva de 3 segundos
+00F9 D281              192         SETB P0.1                   ; DESLIGA O LED AMARELO
+00FB 22                193         ret
+                       194
+                       195     turn_on_red_led_7s:
+00FC C282              196         CLR P0.2                    ; LIGA O LED VERMELHO
+00FE 1201AC            197         call countdown_7_seconds    ; Contagem regressiva de 7 segundos
+0101 D282              198         SETB P0.2                   ; DESLIGA O LED VERMELHO
+0103 22                199         ret
+                       200
+                       201     turn_on_green_led_15s:
+0104 C280              202         CLR P0.0                    ; LIGA O LED VERDE
+0106 120164            203         call countdown_15_seconds   ; Contagem regressiva de 15 segundos
+0109 D280              204         SETB P0.0                   ; DESLIGA O LED VERDE
+010B 22                205         ret
+                       206
+                       207     turn_on_red_led_15s:
+010C C282              208         CLR P0.2                    ; LIGA O LED VERMELHO
+010E 120164            209         call countdown_15_seconds    ; Contagem regressiva de 15 segundos
+0111 D282              210         SETB P0.2                   ; DESLIGA O LED VERMELHO
+0113 22                211         ret
+                       212
+                       213     ; ----------------------
+                       214     ; Contador regressivo de 3 segundos
+                       215     ; ----------------------
+                       216     countdown_3_seconds:
+0114 752003            217         mov data_ptr+0, #3                          ; Inicializa como 3 segundos
+0117 752100            218         mov data_ptr+1, #0
+011A 752200            219         mov data_ptr+2, #0
+011D 752300            220         mov data_ptr+3, #0
+                       221
+                       222     countdown_3_loop:
+0120 202134            223         JB EMERGENCY_FLAG, emergency_mode           ; Verifica emergência primeiro
+0123 7824              224         mov R0, #data_ptr+data_len
+0125 11CD              225         call display_number                         ; Exibe o número
+0127 1170              226         call delay_1s                               ; Atraso de 1 segundo
+0129 7820              227         mov R0, #data_ptr
+012B 119C              228         call decrement_number                       ; Decrementa o número
+012D E520              229         mov A, data_ptr+0
+012F 4521              230         orl A, data_ptr+1
+0131 4522              231         orl A, data_ptr+2
+0133 4523              232         orl A, data_ptr+3
+0135 70E9              233         jnz countdown_3_loop                        ; Continua até chegar a 0000
+0137 22                234         ret
+                       235
+                       236     ; -------------------------------------------------
+                       237     ; Função que controla o sinal verde
+                       238     ; Se a flag de 5 pessoas estiver ativa, o sinal fica 15 segundos;
+                       239     ; caso contrário, 10 segundos.
+                       240     ; -------------------------------------------------
+                       241     turn_on_green_led:
+0138 D2B2              242         SETB P3.2   ; Garante que P3.3 é configurado corretamente
+                       243
+013A 202206            244         JB FIVE_PEOPLE_FLAG, five_people_mode       ; Verifica 5 pessoas primeiro
+013D C280              245         CLR P0.0
+013F 11EC              246         CALL turn_on_green_led_10s
+0141 8006              247         SJMP finish_green_led
+                       248
+                       249     five_people_mode:
+0143 C280              250         CLR P0.0
+0145 3104              251         CALL turn_on_green_led_15s
+0147 C222              252         CLR FIVE_PEOPLE_FLAG                        ;  Flag limpa depois da contagem
+                       253
+                       254     finish_green_led:
+0149 D280              255         SETB P0.0
+014B 22                256         RET
+                       257
+                       258     ; -------------------------------------------------
+                       259     ; Função que controla o sinal vermelho
+                       260     ; Se a flag de emergência estiver ativa, o sinal fica 15 segundos;
+                       261     ; caso contrário, 7 segundos.
+                       262     ; -------------------------------------------------
+                       263     turn_on_red_led:
+014C D2B3              264         SETB P3.3   ; Garante que P3.3 é configurado corretamente
+                       265
+014E 202106            266         JB EMERGENCY_FLAG, emergency_mode            ; Verifica emergência primeiro
+0151 C282              267         CLR P0.2
+0153 11FC              268         CALL turn_on_red_led_7s
+0155 800A              269         SJMP finish_red_led
+                       270
+                       271     emergency_mode:
+0157 D280              272         SETB P0.0
+0159 D281              273         SETB P0.1
+015B C282              274         CLR P0.2
+015D 310C              275         CALL turn_on_red_led_15s
+015F C221              276         CLR EMERGENCY_FLAG                          ;  Flag limpa depois da contagem
+                       277
+                       278     finish_red_led:
+0161 D282              279         SETB P0.2
+0163 22                280         RET
+                       281
+                       282     ; ----------------------
+                       283     ; Contador regressivo de 15 segundos
+                       284     ; ----------------------
+                       285     countdown_15_seconds:
+0164 752005            286         mov data_ptr+0, #5  ; Unidade: 5 (15 segundos)
+0167 752101            287         mov data_ptr+1, #1  ; Dezena: 1 (15 segundos)
+016A 752200            288         mov data_ptr+2, #0  ; Centena: 0
+016D 752300            289         mov data_ptr+3, #0  ; Milhar: 0
+                       290
+                       291     countdown_15_loop:
+0170 7824              292         mov R0, #data_ptr+data_len
+0172 11CD              293         call display_number                         ; Exibe o número
+0174 1170              294         call delay_1s                               ; Atraso de 1 segundo
+0176 7820              295         mov R0, #data_ptr
+0178 119C              296         call decrement_number                       ; Decrementa o número
+017A E520              297         mov A, data_ptr+0
+017C 4521              298         orl A, data_ptr+1
+017E 4522              299         orl A, data_ptr+2
+0180 4523              300         orl A, data_ptr+3
+0182 70EC              301         jnz countdown_15_loop                       ; Continua até chegar a 0000
+0184 22                302         ret
+                       303
+                       304     ; ----------------------
+                       305     ; Contador regressivo de 10 segundos
+                       306     ; ----------------------
+                       307     countdown_10_seconds:
+0185 752000            308         mov data_ptr+0, #0                          ; Inicializa como 10 segundos
+0188 752101            309         mov data_ptr+1, #1
+018B 752200            310         mov data_ptr+2, #0
+018E 752300            311         mov data_ptr+3, #0
+                       312
+                       313     countdown_10_loop:
+                       314         ;call verifica_ex0
+0191 2021C3            315         JB EMERGENCY_FLAG, emergency_mode           ; Verifica emergência primeiro
+0194 2022AC            316         JB FIVE_PEOPLE_FLAG, five_people_mode       ; Verifica 5 pessoas primeiro
+0197 7824              317         mov R0, #data_ptr+data_len
+0199 11CD              318         call display_number                         ; Exibe o número
+019B 1170              319         call delay_1s                               ; Atraso de 1 segundo
+019D 7820              320         mov R0, #data_ptr
+019F 119C              321         call decrement_number                       ; Decrementa o número
+01A1 E520              322         mov A, data_ptr+0
+01A3 4521              323         orl A, data_ptr+1
+01A5 4522              324         orl A, data_ptr+2
+01A7 4523              325         orl A, data_ptr+3
+01A9 70E6              326         jnz countdown_10_loop                       ; Continua até chegar a 0000
+01AB 22                327         ret
+                       328
+                       329     ; ----------------------
+                       330     ; Contador regressivo de 7 segundos
+                       331     ; ----------------------
+                       332     countdown_7_seconds:
+01AC 752007            333         mov data_ptr+0, #7                          ; Inicializa como 7 segundos
+01AF 752100            334         mov data_ptr+1, #0
+01B2 752200            335         mov data_ptr+2, #0
+01B5 752300            336         mov data_ptr+3, #0
+                       337
+                       338     countdown_7_loop:
+01B8 20219C            339         JB EMERGENCY_FLAG, emergency_mode           ; Verifica emergência primeiro
+01BB 7824              340         mov R0, #data_ptr+data_len
+01BD 11CD              341         call display_number                         ; Exibe o número
+01BF 1170              342         call delay_1s                               ; Atraso de 1 segundo
+01C1 7820              343         mov R0, #data_ptr
+01C3 119C              344         call decrement_number                       ; Decrementa o número
+01C5 E520              345         mov A, data_ptr+0
+01C7 4521              346         orl A, data_ptr+1
+01C9 4522              347         orl A, data_ptr+2
+01CB 4523              348         orl A, data_ptr+3
+01CD 70E9              349         jnz countdown_7_loop                        ; Continua até chegar a 0000
+01CF 22                350         ret
+                       351
+                       352     ; ----------------------
+                       353     ; Configuração Inicial
+                       354     ; ----------------------
+                       355     start:
+                       356
+01D0 758160            357         MOV SP, #60h     ; Configura a pilha em um endereço seguro
+                       358
+                       359         ; Configuração de pinos
+01D3 7580FF            360         MOV P0, #0FFh    ; Inicializa P0 (LEDs)
+01D6 7590FF            361         MOV P1, #0FFh    ; Inicializa P1
+01D9 75A0FF            362         MOV P2, #0FFh    ; Inicializa P2
+01DC 75B0FF            363         MOV P3, #0FFh    ; Inicializa P3
+                       364
+                       365         ; Configurações de interrupção
+01DF D2AF              366         SETB EA          ; Habilita interrupções globais
+01E1 D2AA              367         SETB EX1         ; Habilita interrupção externa 1
+01E3 D2A8              368         SETB EX0         ; Habilita interrupção externa 0
+                       369
+                       370         ; Configuração de tipo de borda
+01E5 D28A              371         SETB IT1         ; Configura interrupção para borda de descida
+01E7 D288              372         SETB IT0         ; INT0 - borda de descida
+01E9 D2BA              373         SETB PX1         ; Define interrupção externa 1 como alta prioridade
+01EB C2B8              374         CLR PX0          ; EX0 - BAIXA PRIORIDADE
+                       375
+                       376         ; Inicializa contador
+01ED 754000            377         MOV CONTADOR_EX0, #0
+                       378
+01F0 752000            379         mov data_ptr+0, #0  ; Unidade: 0
+01F3 752100            380         mov data_ptr+1, #0  ; Dezena: 0
+01F6 752200            381         mov data_ptr+2, #0  ; Centena: 0
+01F9 752300            382         mov data_ptr+3, #0  ; Milhar: 0
+                       383
+                       384         ; Configura pinos de entrada e saída
+01FC D2B3              385         SETB P3.3            ; Configura P3.3 como saída
+01FE D2B2              386         SETB P3.2            ; Configura P3.2 como saída
+                       387
+0200 75F0EE            388         mov B, #0EEh
+0203 900210            389         mov DPTR, #numbers
+                       390
+                       391     main:
+0206 11E5              392         call turn_off_leds          ; Desliga todos os 3 LEDs
+0208 3138              393         call turn_on_green_led      ; Liga o LED verde por 3 segundos e depois desliga (se o modo de emer
+020A 11F4              394         call turn_on_yellow_led_3s  ; Liga o LED amarelo por 3 segundos e depois desliga
+020C 314C              395         call turn_on_red_led        ; Liga o LED vermelho por 7 segundos e depois desliga (se o modo de e
+020E 80F6              396         jmp main
+                       397     end
+ASSEMBLY COMPLETE, NO ERRORS FOUND, NO WARNINGS
+
+
+SYMBOL TABLE:
+??MCU_8051_IDE . . . . . . . . . . .  N  NUMB  8051H  NOT USED
+??VERSION. . . . . . . . . . . . . .  N  NUMB  0149H  NOT USED
+AC . . . . . . . . . . . . . . . . .  B  ADDR  00D6H  NOT USED
+ACC. . . . . . . . . . . . . . . . .  D  ADDR  00E0H
+ACSR . . . . . . . . . . . . . . . .  D  ADDR  0097H  NOT USED
+ADCF . . . . . . . . . . . . . . . .  D  ADDR  00F6H  NOT USED
+ADCLK. . . . . . . . . . . . . . . .  D  ADDR  00F2H  NOT USED
+ADCON. . . . . . . . . . . . . . . .  D  ADDR  00F3H  NOT USED
+ADDH . . . . . . . . . . . . . . . .  D  ADDR  00F5H  NOT USED
+ADDL . . . . . . . . . . . . . . . .  D  ADDR  00F4H  NOT USED
+AUXR . . . . . . . . . . . . . . . .  D  ADDR  008EH  NOT USED
+AUXR1. . . . . . . . . . . . . . . .  D  ADDR  00A2H  NOT USED
+B. . . . . . . . . . . . . . . . . .  D  ADDR  00F0H
+BDRCON . . . . . . . . . . . . . . .  D  ADDR  009BH  NOT USED
+BDRCON_1 . . . . . . . . . . . . . .  D  ADDR  009CH  NOT USED
+BRL. . . . . . . . . . . . . . . . .  D  ADDR  009AH  NOT USED
+CCAP0H . . . . . . . . . . . . . . .  D  ADDR  00FAH  NOT USED
+CCAP0L . . . . . . . . . . . . . . .  D  ADDR  00EAH  NOT USED
+CCAP1H . . . . . . . . . . . . . . .  D  ADDR  00FBH  NOT USED
+CCAP1L . . . . . . . . . . . . . . .  D  ADDR  00EBH  NOT USED
+CCAP2H . . . . . . . . . . . . . . .  D  ADDR  00FCH  NOT USED
+CCAP3H . . . . . . . . . . . . . . .  D  ADDR  00FDH  NOT USED
+CCAP4H . . . . . . . . . . . . . . .  D  ADDR  00FEH  NOT USED
+CCAPL2H. . . . . . . . . . . . . . .  D  ADDR  00FCH  NOT USED
+CCAPL2L. . . . . . . . . . . . . . .  D  ADDR  00ECH  NOT USED
+CCAPL3H. . . . . . . . . . . . . . .  D  ADDR  00FDH  NOT USED
+CCAPL3L. . . . . . . . . . . . . . .  D  ADDR  00EDH  NOT USED
+CCAPL4H. . . . . . . . . . . . . . .  D  ADDR  00FEH  NOT USED
+CCAPL4L. . . . . . . . . . . . . . .  D  ADDR  00EEH  NOT USED
+CCAPM0 . . . . . . . . . . . . . . .  D  ADDR  00DAH  NOT USED
+CCAPM1 . . . . . . . . . . . . . . .  D  ADDR  00DBH  NOT USED
+CCAPM2 . . . . . . . . . . . . . . .  D  ADDR  00DCH  NOT USED
+CCAPM3 . . . . . . . . . . . . . . .  D  ADDR  00DDH  NOT USED
+CCAPM4 . . . . . . . . . . . . . . .  D  ADDR  00DEH  NOT USED
+CCF0 . . . . . . . . . . . . . . . .  B  ADDR  00D8H  NOT USED
+CCF1 . . . . . . . . . . . . . . . .  B  ADDR  00D9H  NOT USED
+CCF2 . . . . . . . . . . . . . . . .  B  ADDR  00DAH  NOT USED
+CCF3 . . . . . . . . . . . . . . . .  B  ADDR  00DBH  NOT USED
+CCF4 . . . . . . . . . . . . . . . .  B  ADDR  00DCH  NOT USED
+CCON . . . . . . . . . . . . . . . .  D  ADDR  00D8H  NOT USED
+CFINT. . . . . . . . . . . . . . . .  C  ADDR  0033H  NOT USED
+CH . . . . . . . . . . . . . . . . .  D  ADDR  00F9H  NOT USED
+CHAMA_INCREMENTA . . . . . . . . . .  C  ADDR  0007H
+CKCON. . . . . . . . . . . . . . . .  D  ADDR  008FH  NOT USED
+CKCON0 . . . . . . . . . . . . . . .  D  ADDR  008FH  NOT USED
+CKRL . . . . . . . . . . . . . . . .  D  ADDR  0097H  NOT USED
+CKSEL. . . . . . . . . . . . . . . .  D  ADDR  0085H  NOT USED
+CL . . . . . . . . . . . . . . . . .  D  ADDR  00E9H  NOT USED
+CLKREG . . . . . . . . . . . . . . .  D  ADDR  008FH  NOT USED
+CMOD . . . . . . . . . . . . . . . .  D  ADDR  00D9H  NOT USED
+CONTADOR_EX0 . . . . . . . . . . . .  N  NUMB  0040H
+CONTINUA_EX0 . . . . . . . . . . . .  C  ADDR  009BH
+CONTINUE_DECREMENT_CENTENA . . . . .  C  ADDR  00CAH
+CONTINUE_DECREMENT_DEZENA. . . . . .  C  ADDR  00C7H
+CONTINUE_DECREMENT_UNIDADE . . . . .  C  ADDR  00C4H
+COUNTDOWN_10_LOOP. . . . . . . . . .  C  ADDR  0191H
+COUNTDOWN_10_SECONDS . . . . . . . .  C  ADDR  0185H
+COUNTDOWN_15_LOOP. . . . . . . . . .  C  ADDR  0170H
+COUNTDOWN_15_SECONDS . . . . . . . .  C  ADDR  0164H
+COUNTDOWN_3_LOOP . . . . . . . . . .  C  ADDR  0120H
+COUNTDOWN_3_SECONDS. . . . . . . . .  C  ADDR  0114H
+COUNTDOWN_7_LOOP . . . . . . . . . .  C  ADDR  01B8H
+COUNTDOWN_7_SECONDS. . . . . . . . .  C  ADDR  01ACH
+CPRL2. . . . . . . . . . . . . . . .  B  ADDR  00C8H  NOT USED
+CR . . . . . . . . . . . . . . . . .  B  ADDR  00DEH  NOT USED
+CT2. . . . . . . . . . . . . . . . .  B  ADDR  00C9H  NOT USED
+CY . . . . . . . . . . . . . . . . .  B  ADDR  00D7H  NOT USED
+DATA_LEN . . . . . . . . . . . . . .  N  NUMB  0004H
+DATA_PTR . . . . . . . . . . . . . .  N  NUMB  0020H
+DECREMENT_END. . . . . . . . . . . .  C  ADDR  00C3H
+DECREMENT_NUMBER . . . . . . . . . .  C  ADDR  009CH
+DELAY_1S . . . . . . . . . . . . . .  C  ADDR  0070H
+DISPLAY_NUMBER . . . . . . . . . . .  C  ADDR  00CDH
+DP0H . . . . . . . . . . . . . . . .  D  ADDR  0083H  NOT USED
+DP0L . . . . . . . . . . . . . . . .  D  ADDR  0082H  NOT USED
+DP1H . . . . . . . . . . . . . . . .  D  ADDR  0085H  NOT USED
+DP1L . . . . . . . . . . . . . . . .  D  ADDR  0084H  NOT USED
+DPH. . . . . . . . . . . . . . . . .  D  ADDR  0083H  NOT USED
+DPL. . . . . . . . . . . . . . . . .  D  ADDR  0082H  NOT USED
+EA . . . . . . . . . . . . . . . . .  B  ADDR  00AFH
+EC . . . . . . . . . . . . . . . . .  B  ADDR  00AEH  NOT USED
+EECON. . . . . . . . . . . . . . . .  D  ADDR  0096H  NOT USED
+EMERGENCY_FLAG . . . . . . . . . . .  B  ADDR  0021H
+EMERGENCY_MODE . . . . . . . . . . .  C  ADDR  0157H
+ES . . . . . . . . . . . . . . . . .  B  ADDR  00ACH  NOT USED
+ET0. . . . . . . . . . . . . . . . .  B  ADDR  00A9H  NOT USED
+ET1. . . . . . . . . . . . . . . . .  B  ADDR  00ABH  NOT USED
+ET2. . . . . . . . . . . . . . . . .  B  ADDR  00ADH  NOT USED
+EX0. . . . . . . . . . . . . . . . .  B  ADDR  00A8H
+EX0_ISR. . . . . . . . . . . . . . .  C  ADDR  0003H  NOT USED
+EX1. . . . . . . . . . . . . . . . .  B  ADDR  00AAH
+EX1_ISR. . . . . . . . . . . . . . .  C  ADDR  0013H  NOT USED
+EXEN2. . . . . . . . . . . . . . . .  B  ADDR  00CBH  NOT USED
+EXF2 . . . . . . . . . . . . . . . .  B  ADDR  00CEH  NOT USED
+EXTI0. . . . . . . . . . . . . . . .  C  ADDR  0003H  NOT USED
+EXTI1. . . . . . . . . . . . . . . .  C  ADDR  0013H  NOT USED
+F0 . . . . . . . . . . . . . . . . .  B  ADDR  00D5H  NOT USED
+FE . . . . . . . . . . . . . . . . .  B  ADDR  009FH  NOT USED
+FINISH_GREEN_LED . . . . . . . . . .  C  ADDR  0149H
+FINISH_RED_LED . . . . . . . . . . .  C  ADDR  0161H
+FIVE_PEOPLE_FLAG . . . . . . . . . .  B  ADDR  0022H
+FIVE_PEOPLE_MODE . . . . . . . . . .  C  ADDR  0143H
+IE . . . . . . . . . . . . . . . . .  D  ADDR  00A8H  NOT USED
+IE0. . . . . . . . . . . . . . . . .  B  ADDR  0089H  NOT USED
+IE1. . . . . . . . . . . . . . . . .  B  ADDR  008BH  NOT USED
+INCREMENTA_EX0 . . . . . . . . . . .  C  ADDR  0083H
+INT0 . . . . . . . . . . . . . . . .  B  ADDR  00B2H  NOT USED
+INT1 . . . . . . . . . . . . . . . .  B  ADDR  00B3H  NOT USED
+IP . . . . . . . . . . . . . . . . .  D  ADDR  00B8H  NOT USED
+IPH. . . . . . . . . . . . . . . . .  D  ADDR  00B7H  NOT USED
+IPH0 . . . . . . . . . . . . . . . .  D  ADDR  00B7H  NOT USED
+IPH1 . . . . . . . . . . . . . . . .  D  ADDR  00B3H  NOT USED
+IPL0 . . . . . . . . . . . . . . . .  D  ADDR  00B8H  NOT USED
+IPL1 . . . . . . . . . . . . . . . .  D  ADDR  00B2H  NOT USED
+IT0. . . . . . . . . . . . . . . . .  B  ADDR  0088H
+IT1. . . . . . . . . . . . . . . . .  B  ADDR  008AH
+KBE. . . . . . . . . . . . . . . . .  D  ADDR  009DH  NOT USED
+KBF. . . . . . . . . . . . . . . . .  D  ADDR  009EH  NOT USED
+KBLS . . . . . . . . . . . . . . . .  D  ADDR  009CH  NOT USED
+MAIN . . . . . . . . . . . . . . . .  C  ADDR  0206H
+NUMBERS. . . . . . . . . . . . . . .  C  ADDR  0210H
+OSCCON . . . . . . . . . . . . . . .  D  ADDR  0086H  NOT USED
+OV . . . . . . . . . . . . . . . . .  B  ADDR  00D2H  NOT USED
+P. . . . . . . . . . . . . . . . . .  B  ADDR  00D0H  NOT USED
+P0 . . . . . . . . . . . . . . . . .  D  ADDR  0080H
+P1 . . . . . . . . . . . . . . . . .  D  ADDR  0090H
+P1M1 . . . . . . . . . . . . . . . .  D  ADDR  00D4H  NOT USED
+P1M2 . . . . . . . . . . . . . . . .  D  ADDR  00E2H  NOT USED
+P2 . . . . . . . . . . . . . . . . .  D  ADDR  00A0H
+P3 . . . . . . . . . . . . . . . . .  D  ADDR  00B0H
+P3M1 . . . . . . . . . . . . . . . .  D  ADDR  00D5H  NOT USED
+P3M2 . . . . . . . . . . . . . . . .  D  ADDR  00E3H  NOT USED
+P4 . . . . . . . . . . . . . . . . .  D  ADDR  00C0H  NOT USED
+P4M1 . . . . . . . . . . . . . . . .  D  ADDR  00D6H  NOT USED
+P4M2 . . . . . . . . . . . . . . . .  D  ADDR  00E4H  NOT USED
+P5 . . . . . . . . . . . . . . . . .  D  ADDR  00E8H  NOT USED
+PC . . . . . . . . . . . . . . . . .  B  ADDR  00BEH  NOT USED
+PCON . . . . . . . . . . . . . . . .  D  ADDR  0087H  NOT USED
+PPCL . . . . . . . . . . . . . . . .  B  ADDR  00BEH  NOT USED
+PS . . . . . . . . . . . . . . . . .  B  ADDR  00BCH  NOT USED
+PSL. . . . . . . . . . . . . . . . .  B  ADDR  00BCH  NOT USED
+PSW. . . . . . . . . . . . . . . . .  D  ADDR  00D0H  NOT USED
+PT0. . . . . . . . . . . . . . . . .  B  ADDR  00B9H  NOT USED
+PT0L . . . . . . . . . . . . . . . .  B  ADDR  00B9H  NOT USED
+PT1. . . . . . . . . . . . . . . . .  B  ADDR  00BBH  NOT USED
+PT1L . . . . . . . . . . . . . . . .  B  ADDR  00BBH  NOT USED
+PT2. . . . . . . . . . . . . . . . .  B  ADDR  00BDH  NOT USED
+PT2L . . . . . . . . . . . . . . . .  B  ADDR  00BDH  NOT USED
+PX0. . . . . . . . . . . . . . . . .  B  ADDR  00B8H
+PX0L . . . . . . . . . . . . . . . .  B  ADDR  00B8H  NOT USED
+PX1. . . . . . . . . . . . . . . . .  B  ADDR  00BAH
+PX1L . . . . . . . . . . . . . . . .  B  ADDR  00BAH  NOT USED
+RB8. . . . . . . . . . . . . . . . .  B  ADDR  009AH  NOT USED
+RCAP2H . . . . . . . . . . . . . . .  D  ADDR  00CBH  NOT USED
+RCAP2L . . . . . . . . . . . . . . .  D  ADDR  00CAH  NOT USED
+RCLK . . . . . . . . . . . . . . . .  B  ADDR  00CDH  NOT USED
+RD . . . . . . . . . . . . . . . . .  B  ADDR  00B7H  NOT USED
+REN. . . . . . . . . . . . . . . . .  B  ADDR  009CH  NOT USED
+RESET. . . . . . . . . . . . . . . .  C  ADDR  0000H  NOT USED
+RI . . . . . . . . . . . . . . . . .  B  ADDR  0098H  NOT USED
+RS0. . . . . . . . . . . . . . . . .  B  ADDR  00D3H  NOT USED
+RS1. . . . . . . . . . . . . . . . .  B  ADDR  00D4H  NOT USED
+RXD. . . . . . . . . . . . . . . . .  B  ADDR  00B0H  NOT USED
+SADDR. . . . . . . . . . . . . . . .  D  ADDR  00A9H  NOT USED
+SADDR_0. . . . . . . . . . . . . . .  D  ADDR  00A9H  NOT USED
+SADDR_1. . . . . . . . . . . . . . .  D  ADDR  00AAH  NOT USED
+SADEN. . . . . . . . . . . . . . . .  D  ADDR  00B9H  NOT USED
+SADEN_0. . . . . . . . . . . . . . .  D  ADDR  00B9H  NOT USED
+SADEN_1. . . . . . . . . . . . . . .  D  ADDR  00BAH  NOT USED
+SBUF . . . . . . . . . . . . . . . .  D  ADDR  0099H  NOT USED
+SCON . . . . . . . . . . . . . . . .  D  ADDR  0098H  NOT USED
+SINT . . . . . . . . . . . . . . . .  C  ADDR  0023H  NOT USED
+SM0. . . . . . . . . . . . . . . . .  B  ADDR  009FH  NOT USED
+SM1. . . . . . . . . . . . . . . . .  B  ADDR  009EH  NOT USED
+SM2. . . . . . . . . . . . . . . . .  B  ADDR  009DH  NOT USED
+SP . . . . . . . . . . . . . . . . .  D  ADDR  0081H
+SPCON. . . . . . . . . . . . . . . .  D  ADDR  00C3H  NOT USED
+SPCR . . . . . . . . . . . . . . . .  D  ADDR  00D5H  NOT USED
+SPDAT. . . . . . . . . . . . . . . .  D  ADDR  00C5H  NOT USED
+SPDR . . . . . . . . . . . . . . . .  D  ADDR  0086H  NOT USED
+SPSR . . . . . . . . . . . . . . . .  D  ADDR  00AAH  NOT USED
+SPSTA. . . . . . . . . . . . . . . .  D  ADDR  00C4H  NOT USED
+START. . . . . . . . . . . . . . . .  C  ADDR  01D0H
+T0 . . . . . . . . . . . . . . . . .  B  ADDR  00B4H  NOT USED
+T1 . . . . . . . . . . . . . . . . .  B  ADDR  00B5H  NOT USED
+T2CON. . . . . . . . . . . . . . . .  D  ADDR  00C8H  NOT USED
+T2MOD. . . . . . . . . . . . . . . .  D  ADDR  00C9H  NOT USED
+TB8. . . . . . . . . . . . . . . . .  B  ADDR  009BH  NOT USED
+TCLK . . . . . . . . . . . . . . . .  B  ADDR  00CCH  NOT USED
+TCON . . . . . . . . . . . . . . . .  D  ADDR  0088H  NOT USED
+TF0. . . . . . . . . . . . . . . . .  B  ADDR  008DH
+TF1. . . . . . . . . . . . . . . . .  B  ADDR  008FH  NOT USED
+TF2. . . . . . . . . . . . . . . . .  B  ADDR  00CFH  NOT USED
+TH0. . . . . . . . . . . . . . . . .  D  ADDR  008CH
+TH1. . . . . . . . . . . . . . . . .  D  ADDR  008DH  NOT USED
+TH2. . . . . . . . . . . . . . . . .  D  ADDR  00CDH  NOT USED
+TI . . . . . . . . . . . . . . . . .  B  ADDR  0099H  NOT USED
+TIMER0 . . . . . . . . . . . . . . .  C  ADDR  000BH  NOT USED
+TIMER1 . . . . . . . . . . . . . . .  C  ADDR  001BH  NOT USED
+TIMER2 . . . . . . . . . . . . . . .  C  ADDR  002BH  NOT USED
+TL0. . . . . . . . . . . . . . . . .  D  ADDR  008AH
+TL1. . . . . . . . . . . . . . . . .  D  ADDR  008BH  NOT USED
+TL2. . . . . . . . . . . . . . . . .  D  ADDR  00CCH  NOT USED
+TMOD . . . . . . . . . . . . . . . .  D  ADDR  0089H
+TR0. . . . . . . . . . . . . . . . .  B  ADDR  008CH
+TR1. . . . . . . . . . . . . . . . .  B  ADDR  008EH  NOT USED
+TR2. . . . . . . . . . . . . . . . .  B  ADDR  00CAH  NOT USED
+TURN_OFF_LEDS. . . . . . . . . . . .  C  ADDR  00E5H
+TURN_ON_GREEN_LED. . . . . . . . . .  C  ADDR  0138H
+TURN_ON_GREEN_LED_10S. . . . . . . .  C  ADDR  00ECH
+TURN_ON_GREEN_LED_15S. . . . . . . .  C  ADDR  0104H
+TURN_ON_RED_LED. . . . . . . . . . .  C  ADDR  014CH
+TURN_ON_RED_LED_15S. . . . . . . . .  C  ADDR  010CH
+TURN_ON_RED_LED_7S . . . . . . . . .  C  ADDR  00FCH
+TURN_ON_YELLOW_LED_3S. . . . . . . .  C  ADDR  00F4H
+TXD. . . . . . . . . . . . . . . . .  B  ADDR  00B1H  NOT USED
+VERIFICA_EX0 . . . . . . . . . . . .  C  ADDR  008DH
+WAIT_1S. . . . . . . . . . . . . . .  C  ADDR  007BH
+WDTCON . . . . . . . . . . . . . . .  D  ADDR  00A7H  NOT USED
+WDTPRG . . . . . . . . . . . . . . .  D  ADDR  00A7H  NOT USED
+WDTRST . . . . . . . . . . . . . . .  D  ADDR  00A6H  NOT USED
+WR . . . . . . . . . . . . . . . . .  B  ADDR  00B6H  NOT USED
