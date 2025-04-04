@@ -146,7 +146,7 @@ Siga os passos abaixo para clonar o repositório, importar no **MCU 8051 IDE**, 
 ## 🎥 Demonstração no Simulador (Video): 
 
 <div align="center">
-  <a href="https://#" target="_blank">
+  <a href="https://youtu.be/Js9iruCvWbg" target="_blank">
     <img src="images/Simulador.png" width="500px">
   </a>
 </div>
