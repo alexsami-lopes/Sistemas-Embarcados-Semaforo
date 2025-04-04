@@ -27,11 +27,69 @@ Desenvolver e simular, usando o MCU 8051 IDE, um semáforo inteligente que ajust
 
 Siga os passos abaixo para clonar o repositório, importar no **MCU 8051 IDE**, compilar, executar e simular o código.
 
+
 1. **Clone o repositório para sua máquina local**  
    Abra o terminal e execute os comandos abaixo:
    ```bash
    git clone https://github.com/alexsami-lopes/Sistemas-Embarcados-Semaforo.git
    cd Sistemas-Embarcados-Semaforo
+   ```
+
+2. **Abra o MCU 8051 IDE**  
+   Inicie o programa **MCU 8051 IDE** no seu sistema.
+
+3. **Abra o projeto no MCU 8051 IDE**  
+   No menu principal do programa:
+   - Vá em **`Project` > `Open`**
+   - Navegue até a pasta do projeto clonado:
+     ```
+     Sistemas-Embarcados-Semaforo
+     ```
+   - Selecione o arquivo:
+     ```
+     SEMAFORO2.mcu8051ide
+     ```
+   - Clique em **Abrir**.
+
+4. **Carregue a configuração do painel de LEDs**  
+   No menu principal:
+   - Vá em **`Virtual HW` > `LED Panel`**
+   - Clique no ícone de **Configurações** (🔧)
+   - Escolha **`Load Configuration`**
+   - Selecione o arquivo:
+     ```
+     LED_PANEL_CONFIG.vhc
+     ```
+
+5. **Carregue a configuração do display multiplexado**  
+   Ainda no menu principal:
+   - Vá em **`Virtual HW` > `Multiplexed LED Display`**
+   - Clique no ícone de **Configurações** (🔧)
+   - Selecione **`Load Configuration`**
+   - Escolha o arquivo:
+     ```
+     DISCPLAY_MUX_CONFIG.vhc
+     ```
+
+6. **Carregue a configuração do teclado simples (keypad)**  
+   Novamente no menu:
+   - Vá em **`Virtual HW` > `Simple Keypad`**
+   - Clique no ícone de **Configurações** (🔧)
+   - Selecione **`Load Configuration`**
+   - Escolha o arquivo:
+     ```
+     SIMPLE_KEYPAD_CONFIG.vhc
+     ```
+
+7. **Compile e simule o programa**  
+   - Para **compilar e simular o código**, clique no ícone de **foguete** 🚀 ou pressione **F2**  
+     *(Nota: o código já vem pré-compilado, mas você pode recompilar se quiser)*  
+   - Para **iniciar a simulação**, clique no ícone de **⏩ ">>"** ou pressione **F9**
+   - Durante a simulação, você pode usar:
+     - **F6** – Simulação animada (Animate)
+     - **F7** – Avançar passo a passo (Step)
+     - **F8** – Step Over
+     - **F9** – Executar normalmente (Run)
 
 
 
